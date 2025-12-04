@@ -21,9 +21,11 @@ export function BalanceChart({ data, currency = 'BRL' }: BalanceChartProps) {
   let accumulated = 0;
   const chartData = data.map((item) => {
     accumulated += item.income - item.expense;
+    // Parse month correctly - item.month is in format "YYYY-MM"
+    const [year, month] = item.month.split('-').map(Number);
     return {
       ...item,
-      monthName: getMonthName(new Date(item.month + '-01').getMonth(), true),
+      monthName: getMonthName(month - 1, true), // month is 1-indexed, getMonthName expects 0-indexed
       balance: accumulated,
     };
   });
