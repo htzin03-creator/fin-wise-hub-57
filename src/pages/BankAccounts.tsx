@@ -13,6 +13,7 @@ export default function BankAccounts() {
     isSyncing,
     addConnection, 
     removeConnection,
+    refreshConnection,
     syncConnection,
     getTotalBalance,
   } = useBankConnections();
@@ -135,6 +136,7 @@ export default function BankAccounts() {
                 key={connection.id}
                 connection={connection}
                 onRemove={removeConnection}
+                onRefresh={refreshConnection}
                 onSync={syncConnection}
                 isSyncing={isSyncing}
               />

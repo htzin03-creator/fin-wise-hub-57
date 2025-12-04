@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, RefreshCw, Trash2, Loader2 } from "lucide-react";
+import { Building2, RefreshCw, Trash2, Loader2, CloudDownload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BankConnection } from "@/hooks/useBankConnections";
 import { formatDistanceToNow } from "date-fns";
@@ -8,6 +8,7 @@ import { ptBR } from "date-fns/locale";
 interface BankConnectionCardProps {
   connection: BankConnection;
   onRemove: (id: string) => Promise<boolean>;
+  onRefresh: (connectionId: string, pluggyItemId: string) => Promise<boolean>;
   onSync: (connectionId: string, pluggyItemId: string) => Promise<boolean>;
   isSyncing?: boolean;
 }
@@ -15,6 +16,7 @@ interface BankConnectionCardProps {
 export function BankConnectionCard({ 
   connection, 
   onRemove, 
+  onRefresh,
   onSync,
   isSyncing = false 
 }: BankConnectionCardProps) {
@@ -24,6 +26,10 @@ export function BankConnectionCard({
     setIsRemoving(true);
     await onRemove(connection.id);
     setIsRemoving(false);
+  };
+
+  const handleRefresh = async () => {
+    await onRefresh(connection.id, connection.pluggy_item_id);
   };
 
   const handleSync = async () => {
@@ -62,9 +68,22 @@ export function BankConnectionCard({
         <Button
           variant="ghost"
           size="icon"
+          onClick={handleRefresh}
+          disabled={isSyncing}
+          title="Buscar novos dados do banco"
+        >
+          {isSyncing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <CloudDownload className="w-4 h-4" />
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleSync}
           disabled={isSyncing}
-          title="Sincronizar"
+          title="Sincronizar dados existentes"
         >
           {isSyncing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
