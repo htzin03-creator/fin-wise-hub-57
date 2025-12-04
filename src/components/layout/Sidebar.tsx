@@ -11,6 +11,7 @@ import {
   LogOut,
   Wallet,
   X,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ interface SidebarProps {
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: ArrowUpDown, label: 'Transações', path: '/transactions' },
+  { icon: Building2, label: 'Contas Bancárias', path: '/bank-accounts' },
   { icon: Target, label: 'Metas', path: '/goals' },
   { icon: FolderOpen, label: 'Categorias', path: '/categories' },
   { icon: FileText, label: 'Relatórios', path: '/reports' },

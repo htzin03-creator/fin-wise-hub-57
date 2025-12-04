@@ -1,1 +1,4 @@
 project_id = "vxrwsawzckcjjvcvzraw"
+
+[functions.pluggy]
+verify_jwt = false
