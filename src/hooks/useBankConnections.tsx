@@ -82,22 +82,18 @@ export function useBankConnections() {
     };
   }, [user]);
 
-  // Auto-sync every 5 minutes
+  // Auto-refresh every 30 minutes (fetches new data from bank)
   useEffect(() => {
     if (!user || connections.length === 0) return;
 
-    const syncAllConnections = async () => {
-      console.log("Auto-syncing all bank connections...");
+    // Set up interval for periodic refresh (every 30 minutes)
+    // This is less frequent because it actually fetches new data from the bank
+    const intervalId = setInterval(async () => {
+      console.log("Auto-refreshing all bank connections...");
       for (const connection of connections) {
-        await syncConnection(connection.id, connection.pluggy_item_id);
+        await refreshConnection(connection.id, connection.pluggy_item_id);
       }
-    };
-
-    // Sync on mount if there are connections
-    syncAllConnections();
-
-    // Set up interval for periodic sync (every 5 minutes)
-    const intervalId = setInterval(syncAllConnections, 5 * 60 * 1000);
+    }, 30 * 60 * 1000);
 
     return () => clearInterval(intervalId);
   }, [user, connections.length]);
@@ -168,6 +164,73 @@ export function useBankConnections() {
     return data;
   };
 
+  // Refresh connection - triggers Pluggy to fetch new data from the bank
+  const refreshConnection = async (connectionId: string, pluggyItemId: string) => {
+    if (!user) return false;
+
+    setIsSyncing(true);
+
+    try {
+      console.log("Triggering refresh for connection:", connectionId);
+      toast.info("Solicitando novos dados ao banco...");
+      
+      // Trigger refresh on Pluggy
+      const { data: refreshData, error: refreshError } = await supabase.functions.invoke("pluggy", {
+        body: { 
+          action: "refresh",
+          itemId: pluggyItemId,
+          connectionId: connectionId,
+        },
+      });
+
+      if (refreshError) {
+        console.error("Refresh error:", refreshError);
+        toast.error("Erro ao solicitar atualização do banco");
+        return false;
+      }
+
+      console.log("Refresh triggered:", refreshData);
+      
+      // Poll for completion (Pluggy updates can take a few seconds)
+      let attempts = 0;
+      const maxAttempts = 30; // Wait up to 30 seconds
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        
+        const { data: statusData } = await supabase.functions.invoke("pluggy", {
+          body: { 
+            action: "get-item-status",
+            itemId: pluggyItemId,
+            connectionId: connectionId,
+          },
+        });
+        
+        console.log("Item status:", statusData?.status);
+        
+        if (statusData?.status === 'UPDATED' || statusData?.status === 'LOGIN_ERROR') {
+          break;
+        }
+        
+        if (statusData?.status === 'UPDATING') {
+          attempts++;
+          continue;
+        }
+        
+        break;
+      }
+      
+      // Now sync the data
+      return await syncConnection(connectionId, pluggyItemId);
+    } catch (error) {
+      console.error("Error refreshing:", error);
+      toast.error("Erro ao atualizar dados");
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const syncConnection = async (connectionId: string, pluggyItemId: string) => {
     if (!user) return false;
 
@@ -191,7 +254,12 @@ export function useBankConnections() {
       }
 
       console.log("Sync result:", data);
-      toast.success(`Sincronizado: ${data.accounts} conta(s), ${data.transactions} transação(ões)`);
+      
+      if (data.transactions > 0) {
+        toast.success(`Sincronizado: ${data.accounts} conta(s), ${data.transactions} nova(s) transação(ões)`);
+      } else {
+        toast.info("Sincronizado - nenhuma transação nova encontrada");
+      }
       
       // Refresh data
       await fetchConnections();
@@ -237,6 +305,7 @@ export function useBankConnections() {
     fetchConnections,
     fetchAccounts,
     addConnection,
+    refreshConnection,
     syncConnection,
     removeConnection,
     getTotalBalance,

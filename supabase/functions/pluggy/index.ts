@@ -93,6 +93,47 @@ async function getTransactions(apiKey: string, accountId: string, from?: string)
   return response.json();
 }
 
+// Trigger a refresh on the Pluggy Item to fetch new data from the bank
+async function refreshItem(apiKey: string, itemId: string) {
+  console.log('Triggering refresh for item:', itemId);
+  
+  const response = await fetch(`${PLUGGY_API_URL}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-KEY': apiKey,
+    },
+    body: JSON.stringify({}), // Empty body triggers a refresh
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Pluggy refresh error:', errorText);
+    throw new Error('Failed to refresh item');
+  }
+
+  const data = await response.json();
+  console.log('Item refresh triggered, status:', data.status);
+  return data;
+}
+
+// Check item status
+async function getItemStatus(apiKey: string, itemId: string) {
+  console.log('Checking item status:', itemId);
+  
+  const response = await fetch(`${PLUGGY_API_URL}/items/${itemId}`, {
+    headers: { 'X-API-KEY': apiKey },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Pluggy get item error:', errorText);
+    throw new Error('Failed to get item status');
+  }
+
+  return response.json();
+}
+
 // Helper function to get authenticated user from JWT
 async function getAuthenticatedUser(req: Request, supabase: any): Promise<string> {
   const authHeader = req.headers.get('Authorization');
@@ -313,6 +354,25 @@ serve(async (req) => {
       case 'get-transactions':
         if (!accountId) throw new Error('accountId is required');
         result = await getTransactions(apiKey, accountId, from);
+        break;
+
+      case 'refresh':
+        if (!itemId) throw new Error('itemId is required');
+        if (!connectionId) throw new Error('connectionId is required');
+        
+        // Verify the authenticated user owns this connection before refreshing
+        await verifyConnectionOwnership(supabase, connectionId, authenticatedUserId);
+        
+        // Trigger refresh on Pluggy to fetch new data from the bank
+        result = await refreshItem(apiKey, itemId);
+        break;
+
+      case 'get-item-status':
+        if (!itemId) throw new Error('itemId is required');
+        if (!connectionId) throw new Error('connectionId is required');
+        
+        await verifyConnectionOwnership(supabase, connectionId, authenticatedUserId);
+        result = await getItemStatus(apiKey, itemId);
         break;
 
       case 'sync':
