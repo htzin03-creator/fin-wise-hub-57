@@ -8,13 +8,20 @@ import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { GoalProgress } from '@/components/dashboard/GoalProgress';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useGoals } from '@/hooks/useGoals';
+import { useBankConnections } from '@/hooks/useBankConnections';
 import { CategoryStats, MonthlyStats } from '@/types/finance';
-import { Wallet, TrendingUp, TrendingDown, ArrowUpRight } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, Building2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const { transactions, isLoading: loadingTransactions } = useTransactions();
   const { goals, isLoading: loadingGoals } = useGoals();
+  const { accounts, connections, isLoading: loadingBank, getTotalBalance } = useBankConnections();
+
+  const bankBalance = getTotalBalance();
+  const hasConnectedBank = connections.length > 0;
 
   // Calcular estatísticas
   const stats = useMemo(() => {
@@ -26,7 +33,8 @@ export default function Dashboard() {
       .filter((t) => t.type === 'expense')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const balance = totalIncome - totalExpense;
+    // Usar saldo bancário se disponível, senão usar cálculo de transações
+    const balance = hasConnectedBank ? bankBalance : totalIncome - totalExpense;
 
     // Calcular tendência comparando com mês anterior
     const now = new Date();
@@ -72,7 +80,7 @@ export default function Dashboard() {
       trendPercentage > 5 ? 'up' : trendPercentage < -5 ? 'down' : 'stable';
 
     return { totalIncome, totalExpense, balance, trend, trendPercentage };
-  }, [transactions]);
+  }, [transactions, hasConnectedBank, bankBalance]);
 
   // Calcular estatísticas por categoria (despesas)
   const categoryStats: CategoryStats[] = useMemo(() => {
@@ -133,7 +141,7 @@ export default function Dashboard() {
       .slice(-6);
   }, [transactions]);
 
-  const isLoading = loadingTransactions || loadingGoals;
+  const isLoading = loadingTransactions || loadingGoals || loadingBank;
 
   if (isLoading) {
     return (
@@ -153,12 +161,32 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Banner para conectar banco se não tiver */}
+      {!hasConnectedBank && (
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Conecte sua conta bancária</p>
+              <p className="text-sm text-muted-foreground">Importe transações automaticamente</p>
+            </div>
+          </div>
+          <Link to="/bank-accounts">
+            <Button variant="default" size="sm">
+              Conectar
+            </Button>
+          </Link>
+        </div>
+      )}
+
       {/* Cards de estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title="Saldo Total"
+          title={hasConnectedBank ? "Saldo Bancário" : "Saldo Total"}
           value={stats.balance}
-          icon={Wallet}
+          icon={hasConnectedBank ? Building2 : Wallet}
           trend={stats.trend}
           trendValue={stats.trendPercentage}
         />
@@ -181,6 +209,34 @@ export default function Dashboard() {
           currency={undefined}
         />
       </div>
+
+      {/* Contas bancárias conectadas */}
+      {hasConnectedBank && accounts.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Contas Conectadas</h3>
+            <Link to="/bank-accounts">
+              <Button variant="ghost" size="sm">Ver todas</Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accounts.slice(0, 3).map((account) => (
+              <div
+                key={account.id}
+                className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{account.name || "Conta"}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{account.type}</p>
+                </div>
+                <p className={`font-semibold ${account.balance >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: account.currency || 'BRL' }).format(account.balance)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
