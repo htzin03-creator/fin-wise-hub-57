@@ -78,7 +78,7 @@ export function StatsCard({
             variant === 'expense' && 'text-rose-500'
           )}
         >
-          {formatCurrency(value, currency)}
+          {currency ? formatCurrency(value, currency) : value.toLocaleString('pt-BR')}
         </p>
       </div>
     </div>
