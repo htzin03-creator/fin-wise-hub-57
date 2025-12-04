@@ -1,5 +1,5 @@
 // Página principal do dashboard
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { ExpenseChart } from '@/components/dashboard/ExpenseChart';
 import { MonthlyChart } from '@/components/dashboard/MonthlyChart';
@@ -9,6 +9,7 @@ import { GoalProgress } from '@/components/dashboard/GoalProgress';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useGoals } from '@/hooks/useGoals';
 import { useBankConnections } from '@/hooks/useBankConnections';
+import { useBankTransactions } from '@/hooks/useBankTransactions';
 import { CategoryStats, MonthlyStats } from '@/types/finance';
 import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, Building2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,22 +19,67 @@ import { Button } from '@/components/ui/button';
 export default function Dashboard() {
   const { transactions, isLoading: loadingTransactions } = useTransactions();
   const { goals, isLoading: loadingGoals } = useGoals();
-  const { accounts, connections, isLoading: loadingBank, getTotalBalance } = useBankConnections();
+  const { accounts, connections, isLoading: loadingBank, getTotalBalance, syncConnection } = useBankConnections();
+  const { transactions: bankTransactions, isLoading: loadingBankTransactions, fetchTransactions: fetchBankTransactions } = useBankTransactions();
 
   const bankBalance = getTotalBalance();
   const hasConnectedBank = connections.length > 0;
 
-  // Calcular estatísticas
+  // Auto-sync a cada 5 minutos
+  useEffect(() => {
+    if (!hasConnectedBank) return;
+    
+    const syncAll = async () => {
+      for (const conn of connections) {
+        await syncConnection(conn.id, conn.pluggy_item_id);
+      }
+      fetchBankTransactions();
+    };
+
+    // Sync inicial
+    syncAll();
+
+    // Polling a cada 5 minutos
+    const interval = setInterval(syncAll, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [connections.length]);
+
+  // Combinar transações manuais e bancárias para cálculos
+  const allTransactionsForStats = useMemo(() => {
+    // Transações manuais
+    const manual = transactions.map(t => ({
+      date: t.date,
+      type: t.type as 'income' | 'expense',
+      amount: Number(t.amount),
+      category: t.category,
+      description: t.description,
+      source: 'manual' as const
+    }));
+
+    // Transações bancárias - converter amount negativo para expense, positivo para income
+    const bank = bankTransactions.map(t => ({
+      date: t.date,
+      type: (Number(t.amount) < 0 ? 'expense' : 'income') as 'income' | 'expense',
+      amount: Math.abs(Number(t.amount)),
+      category: t.category ? { id: t.category, name: t.category, color: '#6B7280', icon: 'Tag', type: 'expense' as const } : null,
+      description: t.description || 'Transação bancária',
+      source: 'bank' as const
+    }));
+
+    return [...manual, ...bank];
+  }, [transactions, bankTransactions]);
+
+  // Calcular estatísticas usando todas as transações
   const stats = useMemo(() => {
-    const totalIncome = transactions
+    const totalIncome = allTransactionsForStats
       .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    const totalExpense = transactions
+    const totalExpense = allTransactionsForStats
       .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    // Usar saldo bancário se disponível, senão usar cálculo de transações
+    // Usar saldo bancário se disponível
     const balance = hasConnectedBank ? bankBalance : totalIncome - totalExpense;
 
     // Calcular tendência comparando com mês anterior
@@ -41,12 +87,12 @@ export default function Dashboard() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const currentMonthTransactions = transactions.filter((t) => {
+    const currentMonthTransactions = allTransactionsForStats.filter((t) => {
       const date = new Date(t.date);
       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
     });
 
-    const lastMonthTransactions = transactions.filter((t) => {
+    const lastMonthTransactions = allTransactionsForStats.filter((t) => {
       const date = new Date(t.date);
       const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
@@ -56,18 +102,18 @@ export default function Dashboard() {
     const currentBalance =
       currentMonthTransactions
         .filter((t) => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0) -
+        .reduce((sum, t) => sum + t.amount, 0) -
       currentMonthTransactions
         .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        .reduce((sum, t) => sum + t.amount, 0);
 
     const lastBalance =
       lastMonthTransactions
         .filter((t) => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0) -
+        .reduce((sum, t) => sum + t.amount, 0) -
       lastMonthTransactions
         .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        .reduce((sum, t) => sum + t.amount, 0);
 
     const trendPercentage =
       lastBalance !== 0
@@ -80,28 +126,27 @@ export default function Dashboard() {
       trendPercentage > 5 ? 'up' : trendPercentage < -5 ? 'down' : 'stable';
 
     return { totalIncome, totalExpense, balance, trend, trendPercentage };
-  }, [transactions, hasConnectedBank, bankBalance]);
+  }, [allTransactionsForStats, hasConnectedBank, bankBalance]);
 
-  // Calcular estatísticas por categoria (despesas)
+  // Calcular estatísticas por categoria (despesas) usando todas as transações
   const categoryStats: CategoryStats[] = useMemo(() => {
-    const expenseTransactions = transactions.filter((t) => t.type === 'expense');
-    const totalExpense = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+    const expenseTransactions = allTransactionsForStats.filter((t) => t.type === 'expense');
+    const totalExpense = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
 
     const categoryMap = new Map<string, { category: any; total: number; count: number }>();
 
     expenseTransactions.forEach((t) => {
-      if (t.category) {
-        const existing = categoryMap.get(t.category.id);
-        if (existing) {
-          existing.total += Number(t.amount);
-          existing.count += 1;
-        } else {
-          categoryMap.set(t.category.id, {
-            category: t.category,
-            total: Number(t.amount),
-            count: 1,
-          });
-        }
+      const categoryKey = t.category?.id || 'sem-categoria';
+      const existing = categoryMap.get(categoryKey);
+      if (existing) {
+        existing.total += t.amount;
+        existing.count += 1;
+      } else {
+        categoryMap.set(categoryKey, {
+          category: t.category || { id: 'sem-categoria', name: 'Sem Categoria', color: '#6B7280', icon: 'Tag', type: 'expense' },
+          total: t.amount,
+          count: 1,
+        });
       }
     });
 
@@ -111,21 +156,21 @@ export default function Dashboard() {
         percentage: totalExpense > 0 ? (item.total / totalExpense) * 100 : 0,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [transactions]);
+  }, [allTransactionsForStats]);
 
-  // Calcular estatísticas mensais
+  // Calcular estatísticas mensais usando todas as transações
   const monthlyStats: MonthlyStats[] = useMemo(() => {
     const monthMap = new Map<string, { income: number; expense: number }>();
 
-    transactions.forEach((t) => {
+    allTransactionsForStats.forEach((t) => {
       const date = new Date(t.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
       const existing = monthMap.get(monthKey) || { income: 0, expense: 0 };
       if (t.type === 'income') {
-        existing.income += Number(t.amount);
+        existing.income += t.amount;
       } else {
-        existing.expense += Number(t.amount);
+        existing.expense += t.amount;
       }
       monthMap.set(monthKey, existing);
     });
@@ -139,9 +184,35 @@ export default function Dashboard() {
       }))
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-6);
-  }, [transactions]);
+  }, [allTransactionsForStats]);
 
-  const isLoading = loadingTransactions || loadingGoals || loadingBank;
+  // Combinar transações para exibição recente
+  const recentTransactionsForDisplay = useMemo(() => {
+    const manual = transactions.map(t => ({
+      ...t,
+      source: 'manual' as const
+    }));
+
+    const bank = bankTransactions.map(t => ({
+      id: t.id,
+      description: t.description || 'Transação bancária',
+      amount: Number(t.amount),
+      date: t.date,
+      type: (Number(t.amount) < 0 ? 'expense' : 'income') as 'income' | 'expense',
+      category: t.category ? { id: t.category, name: t.category, color: '#6B7280', icon: 'Tag', type: 'expense' as const, user_id: '', is_default: false, created_at: '' } : null,
+      currency: 'BRL' as const,
+      user_id: t.user_id,
+      created_at: t.created_at,
+      updated_at: t.created_at,
+      category_id: null,
+      source: 'bank' as const
+    }));
+
+    return [...manual, ...bank]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, bankTransactions]);
+
+  const isLoading = loadingTransactions || loadingGoals || loadingBank || loadingBankTransactions;
 
   if (isLoading) {
     return (
@@ -204,7 +275,7 @@ export default function Dashboard() {
         />
         <StatsCard
           title="Transações"
-          value={transactions.length}
+          value={allTransactionsForStats.length}
           icon={ArrowUpRight}
           currency={undefined}
         />
@@ -263,7 +334,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card rounded-2xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4">Transações Recentes</h3>
-          <RecentTransactions transactions={transactions} />
+          <RecentTransactions transactions={recentTransactionsForDisplay} />
         </div>
 
         <div className="bg-card rounded-2xl border border-border p-6">
