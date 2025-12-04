@@ -8,16 +8,30 @@ interface ConnectBankButtonProps {
   onSuccess: (itemId: string, connectorName?: string, connectorLogo?: string) => void;
 }
 
+interface PluggyItem {
+  id: string;
+  connector: {
+    name: string;
+    imageUrl: string;
+  };
+}
+
+interface PluggyConnectInstance {
+  init: () => void;
+  destroy: () => void;
+}
+
+interface PluggyConnectConfig {
+  connectToken: string;
+  includeSandbox?: boolean;
+  onSuccess?: (data: { item: PluggyItem }) => void;
+  onError?: (error: { message: string; data?: { item: PluggyItem } }) => void;
+  onClose?: () => void;
+}
+
 declare global {
   interface Window {
-    PluggyConnect?: {
-      init: (config: {
-        connectToken: string;
-        onSuccess: (data: { item: { id: string; connector: { name: string; imageUrl: string } } }) => void;
-        onError: (error: Error) => void;
-        onClose: () => void;
-      }) => { open: () => void };
-    };
+    PluggyConnect?: new (config: PluggyConnectConfig) => PluggyConnectInstance;
   }
 }
 
@@ -30,7 +44,7 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
     if (!document.getElementById("pluggy-connect-script")) {
       const script = document.createElement("script");
       script.id = "pluggy-connect-script";
-      script.src = "https://cdn.pluggy.ai/pluggy-connect/v2.10.0/pluggy-connect.js";
+      script.src = "https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js";
       script.async = true;
       script.onload = () => {
         console.log("Pluggy script loaded");
@@ -49,7 +63,6 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
   const handleConnect = async () => {
     if (!scriptLoaded) {
       toast.error("Aguarde o carregamento do widget");
-      console.log("Script not loaded yet");
       return;
     }
 
@@ -79,9 +92,12 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
         throw new Error("Token de conexão não recebido");
       }
 
-      console.log("Opening Pluggy widget with token");
-      const pluggyConnect = window.PluggyConnect.init({
+      console.log("Creating Pluggy Connect instance...");
+      
+      // Create new PluggyConnect instance with constructor
+      const pluggyConnect = new window.PluggyConnect({
         connectToken: data.connectToken,
+        includeSandbox: true, // Enable sandbox for testing
         onSuccess: (successData) => {
           console.log("Pluggy connection successful:", successData);
           onSuccess(
@@ -89,21 +105,24 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
             successData.item.connector.name,
             successData.item.connector.imageUrl
           );
+          setIsLoading(false);
         },
         onError: (err) => {
           console.error("Pluggy connection error:", err);
-          toast.error("Erro ao conectar conta bancária");
+          toast.error(err.message || "Erro ao conectar conta bancária");
+          setIsLoading(false);
         },
         onClose: () => {
           console.log("Pluggy widget closed");
+          setIsLoading(false);
         },
       });
 
-      pluggyConnect.open();
+      // Open the widget
+      pluggyConnect.init();
     } catch (error) {
       console.error("Error in handleConnect:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao iniciar conexão bancária");
-    } finally {
       setIsLoading(false);
     }
   };
