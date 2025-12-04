@@ -43,6 +43,65 @@ export function useBankConnections() {
     }
   }, [user]);
 
+  // Real-time subscription for bank accounts (balance changes)
+  useEffect(() => {
+    if (!user) return;
+
+    console.log("Setting up realtime subscription for bank_accounts");
+    
+    const channel = supabase
+      .channel('bank-accounts-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bank_accounts',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Bank account change received:', payload);
+          if (payload.eventType === 'INSERT') {
+            setAccounts(prev => [payload.new as BankAccount, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setAccounts(prev => 
+              prev.map(a => a.id === payload.new.id ? payload.new as BankAccount : a)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setAccounts(prev => prev.filter(a => a.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Bank accounts realtime subscription status:', status);
+      });
+
+    return () => {
+      console.log("Cleaning up bank_accounts realtime subscription");
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // Auto-sync every 5 minutes
+  useEffect(() => {
+    if (!user || connections.length === 0) return;
+
+    const syncAllConnections = async () => {
+      console.log("Auto-syncing all bank connections...");
+      for (const connection of connections) {
+        await syncConnection(connection.id, connection.pluggy_item_id);
+      }
+    };
+
+    // Sync on mount if there are connections
+    syncAllConnections();
+
+    // Set up interval for periodic sync (every 5 minutes)
+    const intervalId = setInterval(syncAllConnections, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [user, connections.length]);
+
   const fetchConnections = async () => {
     if (!user) return;
 
