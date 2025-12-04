@@ -18,7 +18,7 @@ interface StatsCardProps {
 export function StatsCard({
   title,
   value,
-  currency = 'BRL',
+  currency,
   icon: Icon,
   trend,
   trendValue,

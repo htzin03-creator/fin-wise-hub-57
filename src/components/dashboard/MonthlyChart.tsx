@@ -18,10 +18,14 @@ interface MonthlyChartProps {
 }
 
 export function MonthlyChart({ data, currency = 'BRL' }: MonthlyChartProps) {
-  const chartData = data.map((item) => ({
-    ...item,
-    monthName: getMonthName(new Date(item.month + '-01').getMonth(), true),
-  }));
+  const chartData = data.map((item) => {
+    // Parse month correctly - item.month is in format "YYYY-MM"
+    const [year, month] = item.month.split('-').map(Number);
+    return {
+      ...item,
+      monthName: getMonthName(month - 1, true), // month is 1-indexed, getMonthName expects 0-indexed
+    };
+  });
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
