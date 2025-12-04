@@ -116,12 +116,12 @@ export function useBankConnections() {
 
     try {
       console.log("Starting sync for connection:", connectionId);
+      // Note: userId is now extracted from JWT token server-side for security
       const { data, error } = await supabase.functions.invoke("pluggy", {
         body: { 
           action: "sync",
           itemId: pluggyItemId,
           connectionId: connectionId,
-          userId: user.id,
         },
       });
 

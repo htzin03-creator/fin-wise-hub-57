@@ -93,6 +93,50 @@ async function getTransactions(apiKey: string, accountId: string, from?: string)
   return response.json();
 }
 
+// Helper function to get authenticated user from JWT
+async function getAuthenticatedUser(req: Request, supabase: any): Promise<string> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader) {
+    throw new Error('Missing authorization header');
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    console.error('Auth error:', error);
+    throw new Error('Invalid or expired token');
+  }
+
+  console.log('Authenticated user:', user.id);
+  return user.id;
+}
+
+// Helper function to verify user owns the connection
+async function verifyConnectionOwnership(
+  supabase: any, 
+  connectionId: string, 
+  userId: string
+): Promise<void> {
+  const { data: connection, error } = await supabase
+    .from('bank_connections')
+    .select('user_id')
+    .eq('id', connectionId)
+    .single();
+
+  if (error || !connection) {
+    throw new Error('Connection not found');
+  }
+
+  if (connection.user_id !== userId) {
+    console.error('Authorization failed: user', userId, 'tried to access connection owned by', connection.user_id);
+    throw new Error('Not authorized to access this connection');
+  }
+
+  console.log('Connection ownership verified for user:', userId);
+}
+
 // deno-lint-ignore no-explicit-any
 async function syncBankData(
   apiKey: string, 
@@ -240,15 +284,18 @@ serve(async (req) => {
   }
 
   try {
-    const { action, itemId, accountId, connectionId, userId, from } = await req.json();
-    console.log('Pluggy function called with action:', action);
-
-    const apiKey = await getPluggyApiKey();
-
-    // Create Supabase client for sync operations
+    // Create Supabase client for operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get authenticated user from JWT token - NEVER trust client-supplied userId
+    const authenticatedUserId = await getAuthenticatedUser(req, supabase);
+
+    const { action, itemId, accountId, connectionId, from } = await req.json();
+    console.log('Pluggy function called with action:', action, 'by user:', authenticatedUserId);
+
+    const apiKey = await getPluggyApiKey();
 
     let result;
 
@@ -271,8 +318,12 @@ serve(async (req) => {
       case 'sync':
         if (!itemId) throw new Error('itemId is required');
         if (!connectionId) throw new Error('connectionId is required');
-        if (!userId) throw new Error('userId is required');
-        result = await syncBankData(apiKey, itemId, connectionId, userId, supabase);
+        
+        // Verify the authenticated user owns this connection before syncing
+        await verifyConnectionOwnership(supabase, connectionId, authenticatedUserId);
+        
+        // Use authenticated userId, NOT client-supplied value
+        result = await syncBankData(apiKey, itemId, connectionId, authenticatedUserId, supabase);
         break;
 
       default:
@@ -285,8 +336,14 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error('Pluggy function error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Return appropriate status codes
+    const status = message.includes('authorization') || message.includes('authorized') || message.includes('token') 
+      ? 401 
+      : 500;
+    
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+      status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
