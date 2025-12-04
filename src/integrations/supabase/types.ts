@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          balance: number | null
+          bank_connection_id: string
+          bank_data: Json | null
+          created_at: string
+          currency: string | null
+          id: string
+          name: string | null
+          pluggy_account_id: string
+          subtype: string | null
+          type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number | null
+          bank_connection_id: string
+          bank_data?: Json | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          name?: string | null
+          pluggy_account_id: string
+          subtype?: string | null
+          type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number | null
+          bank_connection_id?: string
+          bank_data?: Json | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          name?: string | null
+          pluggy_account_id?: string
+          subtype?: string | null
+          type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_bank_connection_id_fkey"
+            columns: ["bank_connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_connections: {
         Row: {
           connector_logo: string | null
@@ -49,6 +102,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      bank_transactions: {
+        Row: {
+          amount: number
+          bank_account_id: string
+          category: string | null
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          payment_data: Json | null
+          pluggy_transaction_id: string
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          bank_account_id: string
+          category?: string | null
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          payment_data?: Json | null
+          pluggy_transaction_id: string
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          bank_account_id?: string
+          category?: string | null
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          payment_data?: Json | null
+          pluggy_transaction_id?: string
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {

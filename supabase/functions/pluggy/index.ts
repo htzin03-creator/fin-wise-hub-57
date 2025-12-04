@@ -58,22 +58,6 @@ async function createConnectToken(apiKey: string): Promise<string> {
   return data.accessToken;
 }
 
-async function getItem(apiKey: string, itemId: string) {
-  console.log('Fetching Pluggy item:', itemId);
-  
-  const response = await fetch(`${PLUGGY_API_URL}/items/${itemId}`, {
-    headers: { 'X-API-KEY': apiKey },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Pluggy get item error:', errorText);
-    throw new Error('Failed to get item');
-  }
-
-  return response.json();
-}
-
 async function getAccounts(apiKey: string, itemId: string) {
   console.log('Fetching accounts for item:', itemId);
   
@@ -90,12 +74,11 @@ async function getAccounts(apiKey: string, itemId: string) {
   return response.json();
 }
 
-async function getTransactions(apiKey: string, accountId: string, from?: string, to?: string) {
+async function getTransactions(apiKey: string, accountId: string, from?: string) {
   console.log('Fetching transactions for account:', accountId);
   
-  let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}`;
+  let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
   if (from) url += `&from=${from}`;
-  if (to) url += `&to=${to}`;
   
   const response = await fetch(url, {
     headers: { 'X-API-KEY': apiKey },
@@ -110,16 +93,162 @@ async function getTransactions(apiKey: string, accountId: string, from?: string,
   return response.json();
 }
 
+// deno-lint-ignore no-explicit-any
+async function syncBankData(
+  apiKey: string, 
+  itemId: string, 
+  connectionId: string, 
+  userId: string,
+  supabase: any
+) {
+  console.log('Starting sync for item:', itemId, 'connection:', connectionId, 'user:', userId);
+  
+  // Get accounts from Pluggy
+  const accountsResponse = await getAccounts(apiKey, itemId);
+  const accounts = accountsResponse.results || [];
+  
+  console.log(`Found ${accounts.length} accounts from Pluggy`);
+  
+  let syncedAccountsCount = 0;
+  let syncedTransactionsCount = 0;
+  
+  // deno-lint-ignore no-explicit-any
+  for (const account of accounts as any[]) {
+    console.log(`Processing account: ${account.name} (${account.id}), balance: ${account.balance}`);
+    
+    // Check if account already exists
+    const { data: existingAccount } = await supabase
+      .from('bank_accounts')
+      .select('*')
+      .eq('pluggy_account_id', account.id)
+      .maybeSingle();
+    
+    let bankAccountId: string;
+    
+    if (existingAccount) {
+      // Update existing account
+      console.log('Updating existing account:', existingAccount.id);
+      await supabase
+        .from('bank_accounts')
+        .update({
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          balance: account.balance,
+          currency: account.currencyCode || 'BRL',
+          bank_data: account,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingAccount.id);
+      
+      bankAccountId = existingAccount.id;
+    } else {
+      // Insert new account
+      console.log('Creating new account');
+      const { data: newAccount, error: insertError } = await supabase
+        .from('bank_accounts')
+        .insert({
+          user_id: userId,
+          bank_connection_id: connectionId,
+          pluggy_account_id: account.id,
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          balance: account.balance,
+          currency: account.currencyCode || 'BRL',
+          bank_data: account,
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error('Error inserting account:', insertError);
+        continue;
+      }
+      bankAccountId = newAccount.id;
+    }
+    
+    syncedAccountsCount++;
+    
+    // Fetch transactions for this account (last 3 months)
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    try {
+      const transactionsResponse = await getTransactions(
+        apiKey, 
+        account.id,
+        threeMonthsAgo.toISOString().split('T')[0]
+      );
+      const transactions = transactionsResponse.results || [];
+      
+      console.log(`Found ${transactions.length} transactions for account ${account.name}`);
+      
+      // deno-lint-ignore no-explicit-any
+      for (const tx of transactions as any[]) {
+        // Check if transaction already exists
+        const { data: existingTx } = await supabase
+          .from('bank_transactions')
+          .select('id')
+          .eq('pluggy_transaction_id', tx.id)
+          .maybeSingle();
+        
+        if (!existingTx) {
+          const { error: txError } = await supabase
+            .from('bank_transactions')
+            .insert({
+              user_id: userId,
+              bank_account_id: bankAccountId,
+              pluggy_transaction_id: tx.id,
+              description: tx.description,
+              amount: tx.amount,
+              date: tx.date,
+              type: tx.type,
+              category: tx.category,
+              payment_data: tx,
+            });
+          
+          if (!txError) {
+            syncedTransactionsCount++;
+          } else {
+            console.error('Error inserting transaction:', txError);
+          }
+        }
+      }
+    } catch (txError) {
+      console.error('Error fetching transactions:', txError);
+    }
+  }
+  
+  // Update last_sync_at on connection
+  await supabase
+    .from('bank_connections')
+    .update({ last_sync_at: new Date().toISOString() })
+    .eq('id', connectionId);
+  
+  console.log(`Sync complete: ${syncedAccountsCount} accounts, ${syncedTransactionsCount} transactions`);
+  
+  return {
+    accounts: syncedAccountsCount,
+    transactions: syncedTransactionsCount,
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, itemId, accountId, from, to } = await req.json();
+    const { action, itemId, accountId, connectionId, userId, from } = await req.json();
     console.log('Pluggy function called with action:', action);
 
     const apiKey = await getPluggyApiKey();
+
+    // Create Supabase client for sync operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let result;
 
@@ -129,11 +258,6 @@ serve(async (req) => {
         result = { connectToken };
         break;
 
-      case 'get-item':
-        if (!itemId) throw new Error('itemId is required');
-        result = await getItem(apiKey, itemId);
-        break;
-
       case 'get-accounts':
         if (!itemId) throw new Error('itemId is required');
         result = await getAccounts(apiKey, itemId);
@@ -141,7 +265,14 @@ serve(async (req) => {
 
       case 'get-transactions':
         if (!accountId) throw new Error('accountId is required');
-        result = await getTransactions(apiKey, accountId, from, to);
+        result = await getTransactions(apiKey, accountId, from);
+        break;
+
+      case 'sync':
+        if (!itemId) throw new Error('itemId is required');
+        if (!connectionId) throw new Error('connectionId is required');
+        if (!userId) throw new Error('userId is required');
+        result = await syncBankData(apiKey, itemId, connectionId, userId, supabase);
         break;
 
       default:
