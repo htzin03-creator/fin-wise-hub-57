@@ -11,12 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { useGoals } from '@/hooks/useGoals';
 import { cn } from '@/lib/utils';
 import {
@@ -172,39 +167,38 @@ export function GoalCard({ goal, onEdit, onDelete }: GoalCardProps) {
       </div>
 
       {/* Modal para adicionar valor */}
-      <Dialog open={addAmountOpen} onOpenChange={setAddAmountOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Adicionar valor à meta</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="0,00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setAddAmountOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={handleAddAmount}
-                disabled={addToGoal.isPending}
-              >
-                {addToGoal.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Adicionar
-              </Button>
-            </div>
+      <ResponsiveModal
+        open={addAmountOpen}
+        onOpenChange={setAddAmountOpen}
+        title="Adicionar valor à meta"
+      >
+        <div className="space-y-4">
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="0,00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setAddAmountOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={handleAddAmount}
+              disabled={addToGoal.isPending}
+            >
+              {addToGoal.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Adicionar
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </ResponsiveModal>
     </>
   );
 }

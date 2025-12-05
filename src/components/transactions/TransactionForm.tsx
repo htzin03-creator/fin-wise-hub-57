@@ -13,12 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { useCategories } from '@/hooks/useCategories';
 import { useTransactions } from '@/hooks/useTransactions';
 import { Transaction, TransactionType, CurrencyType } from '@/types/finance';
@@ -99,134 +94,130 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Editar Transação' : 'Nova Transação'}
-          </DialogTitle>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEditing ? 'Editar Transação' : 'Nova Transação'}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* Tipo de transação */}
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            variant={type === 'income' ? 'default' : 'outline'}
+            className={cn(
+              'h-12',
+              type === 'income' && 'bg-emerald-500 hover:bg-emerald-600'
+            )}
+            onClick={() => handleTypeChange('income')}
+          >
+            <ArrowUpRight className="w-4 h-4 mr-2" />
+            Receita
+          </Button>
+          <Button
+            type="button"
+            variant={type === 'expense' ? 'default' : 'outline'}
+            className={cn(
+              'h-12',
+              type === 'expense' && 'bg-rose-500 hover:bg-rose-600'
+            )}
+            onClick={() => handleTypeChange('expense')}
+          >
+            <ArrowDownRight className="w-4 h-4 mr-2" />
+            Despesa
+          </Button>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Tipo de transação */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={type === 'income' ? 'default' : 'outline'}
-              className={cn(
-                'h-12',
-                type === 'income' && 'bg-emerald-500 hover:bg-emerald-600'
-              )}
-              onClick={() => handleTypeChange('income')}
-            >
-              <ArrowUpRight className="w-4 h-4 mr-2" />
-              Receita
-            </Button>
-            <Button
-              type="button"
-              variant={type === 'expense' ? 'default' : 'outline'}
-              className={cn(
-                'h-12',
-                type === 'expense' && 'bg-rose-500 hover:bg-rose-600'
-              )}
-              onClick={() => handleTypeChange('expense')}
-            >
-              <ArrowDownRight className="w-4 h-4 mr-2" />
-              Despesa
-            </Button>
-          </div>
+        {/* Descrição */}
+        <div className="space-y-2">
+          <Label htmlFor="description">Descrição</Label>
+          <Input
+            id="description"
+            placeholder="Ex: Salário, Mercado, etc."
+            {...register('description')}
+          />
+          {errors.description && (
+            <p className="text-sm text-destructive">{errors.description.message}</p>
+          )}
+        </div>
 
-          {/* Descrição */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+        {/* Valor e Moeda */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor="amount">Valor</Label>
             <Input
-              id="description"
-              placeholder="Ex: Salário, Mercado, etc."
-              {...register('description')}
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0,00"
+              {...register('amount', { valueAsNumber: true })}
             />
-            {errors.description && (
-              <p className="text-sm text-destructive">{errors.description.message}</p>
+            {errors.amount && (
+              <p className="text-sm text-destructive">{errors.amount.message}</p>
             )}
           </div>
-
-          {/* Valor e Moeda */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="amount">Valor</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                placeholder="0,00"
-                {...register('amount', { valueAsNumber: true })}
-              />
-              {errors.amount && (
-                <p className="text-sm text-destructive">{errors.amount.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Moeda</Label>
-              <Select
-                value={watch('currency')}
-                onValueChange={(value) => setValue('currency', value as CurrencyType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+          <div className="space-y-2">
+            <Label>Moeda</Label>
+            <Select
+              value={watch('currency')}
+              onValueChange={(value) => setValue('currency', value as CurrencyType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent position="popper" className="z-[100]">
                 <SelectItem value="BRL">R$</SelectItem>
                 <SelectItem value="USD">US$</SelectItem>
               </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Categoria */}
-          <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Select
-              value={watch('category_id')}
-              onValueChange={(value) => setValue('category_id', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent position="popper" className="z-[100] max-h-60">
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
             </Select>
           </div>
+        </div>
 
-          {/* Data */}
-          <div className="space-y-2">
-            <Label htmlFor="date">Data</Label>
-            <Input id="date" type="date" {...register('date')} />
-            {errors.date && (
-              <p className="text-sm text-destructive">{errors.date.message}</p>
-            )}
-          </div>
+        {/* Categoria */}
+        <div className="space-y-2">
+          <Label>Categoria</Label>
+          <Select
+            value={watch('category_id')}
+            onValueChange={(value) => setValue('category_id', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma categoria" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100] max-h-60">
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          {/* Botões */}
-          <div className="flex gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" className="flex-1" disabled={isLoading}>
-              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {isEditing ? 'Salvar' : 'Adicionar'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        {/* Data */}
+        <div className="space-y-2">
+          <Label htmlFor="date">Data</Label>
+          <Input id="date" type="date" {...register('date')} />
+          {errors.date && (
+            <p className="text-sm text-destructive">{errors.date.message}</p>
+          )}
+        </div>
+
+        {/* Botões */}
+        <div className="flex gap-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" className="flex-1" disabled={isLoading}>
+            {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isEditing ? 'Salvar' : 'Adicionar'}
+          </Button>
+        </div>
+      </form>
+    </ResponsiveModal>
   );
 }

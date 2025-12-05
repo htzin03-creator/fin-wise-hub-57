@@ -10,12 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,100 +178,96 @@ export default function Categories() {
       </div>
 
       {/* Modal de categoria */}
-      <Dialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
-            </DialogTitle>
-          </DialogHeader>
+      <ResponsiveModal
+        open={formOpen}
+        onOpenChange={(open) => { setFormOpen(open); if (!open) resetForm(); }}
+        title={editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Nome</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nome da categoria"
+              required
+            />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nome</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Nome da categoria"
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Tipo</Label>
+            <Select value={type} onValueChange={(v) => setType(v as TransactionType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100]">
+                <SelectItem value="income">Receita</SelectItem>
+                <SelectItem value="expense">Despesa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={type} onValueChange={(v) => setType(v as TransactionType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" className="z-[100]">
-                  <SelectItem value="income">Receita</SelectItem>
-                  <SelectItem value="expense">Despesa</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-2">
+            <Label>Ícone</Label>
+            <div className="grid grid-cols-5 gap-2">
+              {ICON_OPTIONS.map((iconName) => (
+                <button
+                  key={iconName}
+                  type="button"
+                  className={cn(
+                    'p-3 rounded-lg border transition-colors',
+                    icon === iconName
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                  onClick={() => setIcon(iconName)}
+                >
+                  <DynamicIcon name={iconName} className="w-5 h-5 mx-auto" />
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Ícone</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {ICON_OPTIONS.map((iconName) => (
-                  <button
-                    key={iconName}
-                    type="button"
-                    className={cn(
-                      'p-3 rounded-lg border transition-colors',
-                      icon === iconName
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    )}
-                    onClick={() => setIcon(iconName)}
-                  >
-                    <DynamicIcon name={iconName} className="w-5 h-5 mx-auto" />
-                  </button>
-                ))}
-              </div>
+          <div className="space-y-2">
+            <Label>Cor</Label>
+            <div className="flex gap-2 flex-wrap">
+              {COLOR_OPTIONS.map((colorOption) => (
+                <button
+                  key={colorOption}
+                  type="button"
+                  className={cn(
+                    'w-8 h-8 rounded-lg transition-transform',
+                    color === colorOption && 'ring-2 ring-offset-2 ring-primary scale-110'
+                  )}
+                  style={{ backgroundColor: colorOption }}
+                  onClick={() => setColor(colorOption)}
+                />
+              ))}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Cor</Label>
-              <div className="flex gap-2 flex-wrap">
-                {COLOR_OPTIONS.map((colorOption) => (
-                  <button
-                    key={colorOption}
-                    type="button"
-                    className={cn(
-                      'w-8 h-8 rounded-lg transition-transform',
-                      color === colorOption && 'ring-2 ring-offset-2 ring-primary scale-110'
-                    )}
-                    style={{ backgroundColor: colorOption }}
-                    onClick={() => setColor(colorOption)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setFormOpen(false); resetForm(); }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1"
-                disabled={addCategory.isPending || updateCategory.isPending}
-              >
-                {(addCategory.isPending || updateCategory.isPending) && (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                )}
-                {editingCategory ? 'Salvar' : 'Criar'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div className="flex gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setFormOpen(false); resetForm(); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={addCategory.isPending || updateCategory.isPending}
+            >
+              {(addCategory.isPending || updateCategory.isPending) && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              {editingCategory ? 'Salvar' : 'Criar'}
+            </Button>
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Dialog de confirmação de exclusão */}
       <AlertDialog open={!!deletingCategory} onOpenChange={() => setDeletingCategory(null)}>
