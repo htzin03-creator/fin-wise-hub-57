@@ -173,10 +173,10 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BRL">R$</SelectItem>
-                  <SelectItem value="USD">US$</SelectItem>
-                </SelectContent>
+              <SelectContent position="popper" className="z-[100]">
+                <SelectItem value="BRL">R$</SelectItem>
+                <SelectItem value="USD">US$</SelectItem>
+              </SelectContent>
               </Select>
             </div>
           </div>
@@ -191,7 +191,7 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="z-[100] max-h-60">
                 {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
                     {category.name}

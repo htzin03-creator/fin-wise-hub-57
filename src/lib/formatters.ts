@@ -34,10 +34,14 @@ export function formatDate(date: string | Date, format: 'short' | 'long' = 'shor
   });
 }
 
-// Formata data para input
+// Formata data para input (usa data local, não UTC)
 export function formatDateForInput(date: string | Date): string {
   const d = new Date(date);
-  return d.toISOString().split('T')[0];
+  // Usar getFullYear, getMonth, getDate para evitar problemas de fuso horário
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // Formata porcentagem
