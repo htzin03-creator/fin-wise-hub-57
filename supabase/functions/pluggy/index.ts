@@ -348,11 +348,43 @@ serve(async (req) => {
 
       case 'get-accounts':
         if (!itemId) throw new Error('itemId is required');
+        // Verify the authenticated user owns a connection with this itemId
+        {
+          const { data: conn, error: connError } = await supabase
+            .from('bank_connections')
+            .select('user_id')
+            .eq('pluggy_item_id', itemId)
+            .single();
+          
+          if (connError || !conn) {
+            throw new Error('Connection not found');
+          }
+          if (conn.user_id !== authenticatedUserId) {
+            console.error('Authorization failed: user', authenticatedUserId, 'tried to access accounts for item owned by', conn.user_id);
+            throw new Error('Not authorized to access this item');
+          }
+        }
         result = await getAccounts(apiKey, itemId);
         break;
 
       case 'get-transactions':
         if (!accountId) throw new Error('accountId is required');
+        // Verify the authenticated user owns the account with this accountId
+        {
+          const { data: account, error: accError } = await supabase
+            .from('bank_accounts')
+            .select('user_id')
+            .eq('pluggy_account_id', accountId)
+            .single();
+          
+          if (accError || !account) {
+            throw new Error('Account not found');
+          }
+          if (account.user_id !== authenticatedUserId) {
+            console.error('Authorization failed: user', authenticatedUserId, 'tried to access transactions for account owned by', account.user_id);
+            throw new Error('Not authorized to access this account');
+          }
+        }
         result = await getTransactions(apiKey, accountId, from);
         break;
 
