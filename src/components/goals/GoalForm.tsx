@@ -124,7 +124,7 @@ export function GoalForm({ open, onOpenChange, goal }: GoalFormProps) {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="z-[100]">
                   <SelectItem value="BRL">R$</SelectItem>
                   <SelectItem value="USD">US$</SelectItem>
                 </SelectContent>

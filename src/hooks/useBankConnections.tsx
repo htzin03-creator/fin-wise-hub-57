@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
@@ -35,6 +35,17 @@ export function useBankConnections() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const connectionsRef = useRef<BankConnection[]>([]);
+  const isSyncingRef = useRef(false);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    connectionsRef.current = connections;
+  }, [connections]);
+
+  useEffect(() => {
+    isSyncingRef.current = isSyncing;
+  }, [isSyncing]);
 
   useEffect(() => {
     if (user) {
@@ -82,21 +93,41 @@ export function useBankConnections() {
     };
   }, [user]);
 
-  // Auto-refresh every 30 minutes (fetches new data from bank)
+  // Auto-refresh every 15 minutes (fetches new data from bank)
   useEffect(() => {
-    if (!user || connections.length === 0) return;
+    if (!user) return;
 
-    // Set up interval for periodic refresh (every 30 minutes)
-    // This is less frequent because it actually fetches new data from the bank
-    const intervalId = setInterval(async () => {
-      console.log("Auto-refreshing all bank connections...");
-      for (const connection of connections) {
-        await refreshConnection(connection.id, connection.pluggy_item_id);
+    const autoSync = async () => {
+      const currentConnections = connectionsRef.current;
+      if (currentConnections.length === 0 || isSyncingRef.current) {
+        console.log("Skipping auto-sync: no connections or already syncing");
+        return;
       }
-    }, 30 * 60 * 1000);
 
-    return () => clearInterval(intervalId);
-  }, [user, connections.length]);
+      console.log("Auto-syncing all bank connections...", new Date().toLocaleTimeString());
+      
+      for (const connection of currentConnections) {
+        try {
+          await syncConnectionDirect(connection.id, connection.pluggy_item_id);
+        } catch (error) {
+          console.error("Auto-sync error for connection:", connection.id, error);
+        }
+      }
+    };
+
+    // Initial sync after 5 seconds
+    const initialTimeout = setTimeout(() => {
+      autoSync();
+    }, 5000);
+
+    // Set up interval for periodic sync (every 15 minutes)
+    const intervalId = setInterval(autoSync, 15 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(intervalId);
+    };
+  }, [user]);
 
   const fetchConnections = async () => {
     if (!user) return;
@@ -231,6 +262,38 @@ export function useBankConnections() {
     }
   };
 
+  // Silent sync for auto-sync (no toasts unless new transactions)
+  const syncConnectionDirect = async (connectionId: string, pluggyItemId: string) => {
+    try {
+      console.log("Auto-sync for connection:", connectionId);
+      const { data, error } = await supabase.functions.invoke("pluggy", {
+        body: { 
+          action: "sync",
+          itemId: pluggyItemId,
+          connectionId: connectionId,
+        },
+      });
+
+      if (error) {
+        console.error("Auto-sync error:", error);
+        return false;
+      }
+
+      console.log("Auto-sync result:", data);
+      
+      if (data.transactions > 0) {
+        toast.success(`${data.transactions} nova(s) transação(ões) sincronizada(s)`);
+        await fetchConnections();
+        await fetchAccounts();
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Auto-sync error:", error);
+      return false;
+    }
+  };
+
   const syncConnection = async (connectionId: string, pluggyItemId: string) => {
     if (!user) return false;
 
@@ -238,7 +301,6 @@ export function useBankConnections() {
 
     try {
       console.log("Starting sync for connection:", connectionId);
-      // Note: userId is now extracted from JWT token server-side for security
       const { data, error } = await supabase.functions.invoke("pluggy", {
         body: { 
           action: "sync",
