@@ -14,8 +14,29 @@ export function formatCurrency(value: number, currency: CurrencyType = 'BRL'): s
   return formatter.format(value);
 }
 
-// Formata data para exibição
+// Formata data para exibição (corrige problema de fuso horário)
 export function formatDate(date: string | Date, format: 'short' | 'long' = 'short'): string {
+  // Se for string no formato YYYY-MM-DD, parsear manualmente para evitar problemas de fuso
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] = date.split('-').map(Number);
+    const d = new Date(year, month - 1, day); // Cria data local
+    
+    if (format === 'long') {
+      return d.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    }
+    
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+  
   const d = new Date(date);
   
   if (format === 'long') {
