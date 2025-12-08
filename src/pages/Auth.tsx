@@ -1,4 +1,4 @@
-// Página de autenticação (Login/Cadastro)
+// Página de autenticação (Login/Cadastro/Recuperação de Senha)
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Wallet, Loader2, Mail, Lock, User } from 'lucide-react';
+import { Wallet, Loader2, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
@@ -25,11 +26,18 @@ const signupSchema = loginSchema.extend({
   path: ['confirmPassword'],
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
 type LoginData = z.infer<typeof loginSchema>;
 type SignupData = z.infer<typeof signupSchema>;
+type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
+
+type AuthMode = 'login' | 'signup' | 'forgot-password';
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [isLoading, setIsLoading] = useState(false);
   const { user, signIn, signUp } = useAuth();
 
@@ -39,6 +47,10 @@ export default function Auth() {
 
   const signupForm = useForm<SignupData>({
     resolver: zodResolver(signupSchema),
+  });
+
+  const forgotPasswordForm = useForm<ForgotPasswordData>({
+    resolver: zodResolver(forgotPasswordSchema),
   });
 
   // Redireciona se já estiver logado
@@ -80,6 +92,31 @@ export default function Auth() {
         title: 'Conta criada!',
         description: 'Você já pode começar a usar o sistema.',
       });
+    }
+  };
+
+  const handleForgotPassword = async (data: ForgotPasswordData) => {
+    setIsLoading(true);
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: 'Erro ao enviar email',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Email enviado!',
+        description: 'Verifique sua caixa de entrada para redefinir sua senha.',
+      });
+      forgotPasswordForm.reset();
+      setAuthMode('login');
     }
   };
 
@@ -145,161 +182,218 @@ export default function Auth() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-8 p-1 bg-muted rounded-lg">
-            <button
-              className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
-                isLogin
-                  ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => setIsLogin(true)}
-            >
-              Entrar
-            </button>
-            <button
-              className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
-                !isLogin
-                  ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => setIsLogin(false)}
-            >
-              Criar conta
-            </button>
-          </div>
-
-          {/* Formulário de Login */}
-          {isLogin ? (
-            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="pl-10"
-                    {...loginForm.register('email')}
-                  />
-                </div>
-                {loginForm.formState.errors.email && (
-                  <p className="text-sm text-destructive">
-                    {loginForm.formState.errors.email.message}
-                  </p>
-                )}
+          {/* Recuperar Senha */}
+          {authMode === 'forgot-password' ? (
+            <div>
+              <button
+                onClick={() => setAuthMode('login')}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Voltar ao login
+              </button>
+              
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-2">Esqueceu sua senha?</h2>
+                <p className="text-muted-foreground">
+                  Digite seu email e enviaremos um link para redefinir sua senha.
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    {...loginForm.register('password')}
-                  />
+              <form onSubmit={forgotPasswordForm.handleSubmit(handleForgotPassword)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="forgot-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      className="pl-10"
+                      {...forgotPasswordForm.register('email')}
+                    />
+                  </div>
+                  {forgotPasswordForm.formState.errors.email && (
+                    <p className="text-sm text-destructive">
+                      {forgotPasswordForm.formState.errors.email.message}
+                    </p>
+                  )}
                 </div>
-                {loginForm.formState.errors.password && (
-                  <p className="text-sm text-destructive">
-                    {loginForm.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
 
-              <Button type="submit" className="w-full h-12" disabled={isLoading}>
-                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Entrar
-              </Button>
-            </form>
+                <Button type="submit" className="w-full h-12" disabled={isLoading}>
+                  {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Enviar link de recuperação
+                </Button>
+              </form>
+            </div>
           ) : (
-            /* Formulário de Cadastro */
-            <form onSubmit={signupForm.handleSubmit(handleSignup)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signup-name">Nome completo</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="signup-name"
-                    placeholder="Seu nome"
-                    className="pl-10"
-                    {...signupForm.register('fullName')}
-                  />
-                </div>
-                {signupForm.formState.errors.fullName && (
-                  <p className="text-sm text-destructive">
-                    {signupForm.formState.errors.fullName.message}
-                  </p>
-                )}
+            <>
+              {/* Tabs */}
+              <div className="flex gap-2 mb-8 p-1 bg-muted rounded-lg">
+                <button
+                  className={cn(
+                    'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
+                    authMode === 'login'
+                      ? 'bg-background shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  onClick={() => setAuthMode('login')}
+                >
+                  Entrar
+                </button>
+                <button
+                  className={cn(
+                    'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
+                    authMode === 'signup'
+                      ? 'bg-background shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  onClick={() => setAuthMode('signup')}
+                >
+                  Criar conta
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="pl-10"
-                    {...signupForm.register('email')}
-                  />
-                </div>
-                {signupForm.formState.errors.email && (
-                  <p className="text-sm text-destructive">
-                    {signupForm.formState.errors.email.message}
-                  </p>
-                )}
-              </div>
+              {/* Formulário de Login */}
+              {authMode === 'login' ? (
+                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="login-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        className="pl-10"
+                        {...loginForm.register('email')}
+                      />
+                    </div>
+                    {loginForm.formState.errors.email && (
+                      <p className="text-sm text-destructive">
+                        {loginForm.formState.errors.email.message}
+                      </p>
+                    )}
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    {...signupForm.register('password')}
-                  />
-                </div>
-                {signupForm.formState.errors.password && (
-                  <p className="text-sm text-destructive">
-                    {signupForm.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Senha</Label>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('forgot-password')}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Esqueceu a senha?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="login-password"
+                        type="password"
+                        placeholder="••••••••"
+                        className="pl-10"
+                        {...loginForm.register('password')}
+                      />
+                    </div>
+                    {loginForm.formState.errors.password && (
+                      <p className="text-sm text-destructive">
+                        {loginForm.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signup-confirm">Confirmar senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="signup-confirm"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    {...signupForm.register('confirmPassword')}
-                  />
-                </div>
-                {signupForm.formState.errors.confirmPassword && (
-                  <p className="text-sm text-destructive">
-                    {signupForm.formState.errors.confirmPassword.message}
-                  </p>
-                )}
-              </div>
+                  <Button type="submit" className="w-full h-12" disabled={isLoading}>
+                    {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Entrar
+                  </Button>
+                </form>
+              ) : (
+                /* Formulário de Cadastro */
+                <form onSubmit={signupForm.handleSubmit(handleSignup)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Nome completo</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="signup-name"
+                        placeholder="Seu nome"
+                        className="pl-10"
+                        {...signupForm.register('fullName')}
+                      />
+                    </div>
+                    {signupForm.formState.errors.fullName && (
+                      <p className="text-sm text-destructive">
+                        {signupForm.formState.errors.fullName.message}
+                      </p>
+                    )}
+                  </div>
 
-              <Button type="submit" className="w-full h-12" disabled={isLoading}>
-                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Criar conta
-              </Button>
-            </form>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        className="pl-10"
+                        {...signupForm.register('email')}
+                      />
+                    </div>
+                    {signupForm.formState.errors.email && (
+                      <p className="text-sm text-destructive">
+                        {signupForm.formState.errors.email.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        placeholder="••••••••"
+                        className="pl-10"
+                        {...signupForm.register('password')}
+                      />
+                    </div>
+                    {signupForm.formState.errors.password && (
+                      <p className="text-sm text-destructive">
+                        {signupForm.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirm">Confirmar senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="signup-confirm"
+                        type="password"
+                        placeholder="••••••••"
+                        className="pl-10"
+                        {...signupForm.register('confirmPassword')}
+                      />
+                    </div>
+                    {signupForm.formState.errors.confirmPassword && (
+                      <p className="text-sm text-destructive">
+                        {signupForm.formState.errors.confirmPassword.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button type="submit" className="w-full h-12" disabled={isLoading}>
+                    {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Criar conta
+                  </Button>
+                </form>
+              )}
+            </>
           )}
         </div>
       </div>
