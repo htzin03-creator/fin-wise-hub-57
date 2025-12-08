@@ -12,6 +12,7 @@ import {
   Wallet,
   X,
   Building2,
+  Lightbulb,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNewTransactionNotifications } from '@/hooks/useNewTransactionNotifications';
@@ -29,6 +30,7 @@ const menuItems = [
   { icon: ArrowUpDown, label: 'Transações', path: '/transactions', showBadge: true },
   { icon: Building2, label: 'Contas Bancárias', path: '/bank-accounts' },
   { icon: Target, label: 'Metas', path: '/goals' },
+  { icon: Lightbulb, label: 'Dicas', path: '/tips' },
   { icon: FolderOpen, label: 'Categorias', path: '/categories' },
   { icon: FileText, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },

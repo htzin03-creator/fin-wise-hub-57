@@ -2,3 +2,6 @@ project_id = "vxrwsawzckcjjvcvzraw"
 
 [functions.pluggy]
 verify_jwt = true
+
+[functions.spending-tips]
+verify_jwt = true

@@ -75,6 +75,9 @@ import Categories from "./pages/Categories";
 // Relatórios financeiros
 import Reports from "./pages/Reports";
 
+// Dicas personalizadas com IA
+import Tips from "./pages/Tips";
+
 // Configurações do usuário
 import Settings from "./pages/Settings";
 
@@ -153,6 +156,9 @@ const App = () => (
               
               {/* Relatórios e análises */}
               <Route path="/reports" element={<Reports />} />
+              
+              {/* Dicas personalizadas */}
+              <Route path="/tips" element={<Tips />} />
               
               {/* Configurações do usuário */}
               <Route path="/settings" element={<Settings />} />
