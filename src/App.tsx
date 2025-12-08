@@ -57,6 +57,9 @@ import Index from "./pages/Index";
 // Página de login/cadastro
 import Auth from "./pages/Auth";
 
+// Página de redefinição de senha
+import ResetPassword from "./pages/ResetPassword";
+
 // Dashboard com estatísticas e gráficos
 import Dashboard from "./pages/Dashboard";
 
@@ -126,6 +129,9 @@ const App = () => (
             
             {/* Página de login/cadastro */}
             <Route path="/auth" element={<Auth />} />
+            
+            {/* Página de redefinição de senha */}
+            <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* =====================================
                 ROTAS PROTEGIDAS
