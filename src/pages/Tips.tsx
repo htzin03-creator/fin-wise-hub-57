@@ -1,21 +1,25 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { GoalForm } from '@/components/goals/GoalForm';
 import { 
   Lightbulb, 
   RefreshCw, 
   TrendingDown, 
   Sparkles,
   AlertCircle,
-  PiggyBank
+  PiggyBank,
+  Target
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Goal } from '@/types/finance';
 
 interface Tip {
   category: string;
@@ -32,6 +36,9 @@ interface TipsResponse {
 
 export default function Tips() {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [goalFormOpen, setGoalFormOpen] = useState(false);
+  const [selectedGoalData, setSelectedGoalData] = useState<{ name: string; amount: number } | null>(null);
+  const navigate = useNavigate();
 
   const { data, isLoading, error, refetch } = useQuery<TipsResponse>({
     queryKey: ['spending-tips'],
@@ -68,6 +75,16 @@ export default function Tips() {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleCreateGoal = (category: string, amount: number) => {
+    // Suggest 20% reduction as goal
+    const suggestedSavings = Math.round(amount * 0.2);
+    setSelectedGoalData({
+      name: `Economizar em ${category}`,
+      amount: suggestedSavings > 0 ? suggestedSavings : 100,
+    });
+    setGoalFormOpen(true);
   };
 
   if (isLoading) {
@@ -238,7 +255,7 @@ export default function Tips() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <ul className="space-y-3">
                 {tipGroup.tips.map((tip, tipIndex) => (
                   <li key={tipIndex} className="flex items-start gap-3">
@@ -253,6 +270,18 @@ export default function Tips() {
                   </li>
                 ))}
               </ul>
+              
+              {tipGroup.amount > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full mt-4"
+                  onClick={() => handleCreateGoal(tipGroup.category, tipGroup.amount)}
+                >
+                  <Target className="w-4 h-4 mr-2" />
+                  Criar meta de economia
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -270,6 +299,20 @@ export default function Tips() {
           </CardContent>
         </Card>
       )}
+
+      {/* Goal Form Modal */}
+      <GoalForm 
+        open={goalFormOpen} 
+        onOpenChange={(open) => {
+          setGoalFormOpen(open);
+          if (!open) setSelectedGoalData(null);
+        }}
+        defaultValues={selectedGoalData ? {
+          name: selectedGoalData.name,
+          target_amount: selectedGoalData.amount,
+          currency: 'BRL' as const,
+        } : undefined}
+      />
     </div>
   );
 }
