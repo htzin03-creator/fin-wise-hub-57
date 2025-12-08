@@ -86,16 +86,19 @@ export default function Transactions() {
           </p>
         </div>
         <div className="flex gap-2">
-          {hasConnectedBank && (
-            <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing}>
-              {isSyncing ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              Sincronizar
-            </Button>
-          )}
+          <Button 
+            variant="outline" 
+            onClick={handleSyncAll} 
+            disabled={isSyncing || !hasConnectedBank}
+            title={!hasConnectedBank ? "Conecte uma conta bancária primeiro" : "Sincronizar transações bancárias"}
+          >
+            {isSyncing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-2" />
+            )}
+            Sincronizar
+          </Button>
           <Button onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Transação

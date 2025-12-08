@@ -238,8 +238,8 @@ export function useBankConnections() {
       autoSync();
     }, 5000);
 
-    // Sync periódico a cada 15 minutos
-    const intervalId = setInterval(autoSync, 15 * 60 * 1000);
+    // Sync periódico a cada 5 minutos
+    const intervalId = setInterval(autoSync, 5 * 60 * 1000);
 
     // Cleanup
     return () => {
