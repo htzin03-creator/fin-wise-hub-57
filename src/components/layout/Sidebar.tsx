@@ -1,5 +1,5 @@
 // Componente de menu lateral
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -14,7 +14,10 @@ import {
   Building2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNewTransactionNotifications } from '@/hooks/useNewTransactionNotifications';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useEffect } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,7 +26,7 @@ interface SidebarProps {
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: ArrowUpDown, label: 'Transações', path: '/transactions' },
+  { icon: ArrowUpDown, label: 'Transações', path: '/transactions', showBadge: true },
   { icon: Building2, label: 'Contas Bancárias', path: '/bank-accounts' },
   { icon: Target, label: 'Metas', path: '/goals' },
   { icon: FolderOpen, label: 'Categorias', path: '/categories' },
@@ -33,6 +36,15 @@ const menuItems = [
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { signOut, user } = useAuth();
+  const { newTransactionsCount, markAllAsSeen } = useNewTransactionNotifications();
+  const location = useLocation();
+
+  // Marca como visto quando navegar para transações
+  useEffect(() => {
+    if (location.pathname === '/transactions' && newTransactionsCount > 0) {
+      markAllAsSeen();
+    }
+  }, [location.pathname, newTransactionsCount, markAllAsSeen]);
 
   return (
     <>
@@ -89,7 +101,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               }
             >
               <item.icon className="w-5 h-5" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.showBadge && newTransactionsCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="h-5 min-w-5 px-1.5 text-xs animate-pulse"
+                >
+                  {newTransactionsCount > 99 ? '99+' : newTransactionsCount}
+                </Badge>
+              )}
             </NavLink>
           ))}
         </nav>

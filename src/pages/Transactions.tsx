@@ -1,14 +1,16 @@
 // Página de transações
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useBankTransactions } from '@/hooks/useBankTransactions';
 import { useBankConnections } from '@/hooks/useBankConnections';
+import { useNewTransactionNotifications } from '@/hooks/useNewTransactionNotifications';
 import { Plus, Building2, RefreshCw, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -16,10 +18,18 @@ import { Link } from 'react-router-dom';
 export default function Transactions() {
   const [formOpen, setFormOpen] = useState(false);
   const { transactions: manualTransactions, isLoading: loadingManual } = useTransactions();
-  const { transactions: bankTransactions, isLoading: loadingBank } = useBankTransactions();
+  const { transactions: bankTransactions, isLoading: loadingBank, fetchTransactions: refetchBankTransactions } = useBankTransactions();
   const { connections, syncConnection, isSyncing } = useBankConnections();
+  const { newTransactionsCount, markAllAsSeen } = useNewTransactionNotifications();
 
   const hasConnectedBank = connections.length > 0;
+
+  // Marca notificações como visualizadas quando a página é acessada
+  useEffect(() => {
+    if (newTransactionsCount > 0) {
+      markAllAsSeen();
+    }
+  }, []);
 
   // Combinar transações manuais e bancárias para a visualização "Todas"
   const allTransactions = useMemo(() => {
@@ -55,6 +65,8 @@ export default function Transactions() {
     for (const conn of connections) {
       await syncConnection(conn.id, conn.pluggy_item_id);
     }
+    // Recarrega transações após sincronização
+    await refetchBankTransactions();
   };
 
   const isLoading = loadingManual || loadingBank;
@@ -129,14 +141,23 @@ export default function Transactions() {
       {/* Tabs para filtrar por fonte */}
       <Tabs defaultValue="all" className="w-full">
         <TabsList>
-          <TabsTrigger value="all">
-            Todas ({allTransactions.length})
+          <TabsTrigger value="all" className="gap-2">
+            Todas
+            <Badge variant="secondary" className="h-5 px-1.5">
+              {allTransactions.length}
+            </Badge>
           </TabsTrigger>
-          <TabsTrigger value="manual">
-            Manuais ({manualTransactions.length})
+          <TabsTrigger value="manual" className="gap-2">
+            Manuais
+            <Badge variant="secondary" className="h-5 px-1.5">
+              {manualTransactions.length}
+            </Badge>
           </TabsTrigger>
-          <TabsTrigger value="bank">
-            Bancárias ({bankTransactions.length})
+          <TabsTrigger value="bank" className="gap-2">
+            Bancárias
+            <Badge variant="secondary" className="h-5 px-1.5">
+              {bankTransactions.length}
+            </Badge>
           </TabsTrigger>
         </TabsList>
 
