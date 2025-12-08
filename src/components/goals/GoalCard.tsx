@@ -97,29 +97,31 @@ export function GoalCard({ goal, onEdit, onDelete }: GoalCardProps) {
             </div>
           </div>
 
-          {!isCompleted && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setAddAmountOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar valor
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onEdit(goal)}>
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive" onClick={() => onDelete(goal)}>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isCompleted && (
+                <>
+                  <DropdownMenuItem onClick={() => setAddAmountOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar valor
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit(goal)}>
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem className="text-destructive" onClick={() => onDelete(goal)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Progresso */}
