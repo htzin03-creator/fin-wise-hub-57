@@ -1,5 +1,6 @@
 // Formulário para adicionar/editar metas
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -31,9 +32,14 @@ interface GoalFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   goal?: Goal;
+  defaultValues?: {
+    name: string;
+    target_amount: number;
+    currency: CurrencyType;
+  };
 }
 
-export function GoalForm({ open, onOpenChange, goal }: GoalFormProps) {
+export function GoalForm({ open, onOpenChange, goal, defaultValues }: GoalFormProps) {
   const { addGoal, updateGoal } = useGoals();
 
   const {
@@ -46,12 +52,24 @@ export function GoalForm({ open, onOpenChange, goal }: GoalFormProps) {
   } = useForm<FormData>({
     resolver: zodResolver(goalSchema),
     defaultValues: {
-      name: goal?.name || '',
-      target_amount: goal ? Number(goal.target_amount) : undefined,
-      currency: goal?.currency || 'BRL',
+      name: goal?.name || defaultValues?.name || '',
+      target_amount: goal ? Number(goal.target_amount) : defaultValues?.target_amount || undefined,
+      currency: goal?.currency || defaultValues?.currency || 'BRL',
       deadline: goal?.deadline ? formatDateForInput(goal.deadline) : '',
     },
   });
+
+  // Reset form when defaultValues change (for creating from tips)
+  useEffect(() => {
+    if (defaultValues && open) {
+      reset({
+        name: defaultValues.name,
+        target_amount: defaultValues.target_amount,
+        currency: defaultValues.currency,
+        deadline: '',
+      });
+    }
+  }, [defaultValues, open, reset]);
 
   const isEditing = !!goal;
   const isLoading = addGoal.isPending || updateGoal.isPending;
