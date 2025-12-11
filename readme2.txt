@@ -106,3 +106,5 @@ Erro de conexão com banco de dados:
 -> Verifique as variáveis de ambiente no arquivo .env
 
 ====================================================
+
+Heitor e Jorge
