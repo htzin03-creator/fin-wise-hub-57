@@ -74,23 +74,42 @@ async function getAccounts(apiKey: string, itemId: string) {
   return response.json();
 }
 
-async function getTransactions(apiKey: string, accountId: string, from?: string) {
-  console.log('Fetching transactions for account:', accountId);
+async function getAllTransactions(apiKey: string, accountId: string, from?: string) {
+  console.log('Fetching all transactions for account:', accountId, 'from:', from);
   
-  let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
-  if (from) url += `&from=${from}`;
+  let allTransactions: any[] = [];
+  let page = 1;
+  let hasMore = true;
   
-  const response = await fetch(url, {
-    headers: { 'X-API-KEY': apiKey },
-  });
+  while (hasMore) {
+    let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500&page=${page}`;
+    if (from) url += `&from=${from}`;
+    
+    const response = await fetch(url, {
+      headers: { 'X-API-KEY': apiKey },
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Pluggy get transactions error:', errorText);
-    throw new Error('Failed to get transactions');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Pluggy get transactions error:', errorText);
+      throw new Error('Failed to get transactions');
+    }
+
+    const data = await response.json();
+    const results = data.results || [];
+    allTransactions = allTransactions.concat(results);
+    
+    console.log(`Page ${page}: ${results.length} transactions (total so far: ${allTransactions.length}, totalCount: ${data.total})`);
+    
+    // Check if there are more pages
+    if (allTransactions.length >= (data.total || 0) || results.length === 0) {
+      hasMore = false;
+    } else {
+      page++;
+    }
   }
-
-  return response.json();
+  
+  return { results: allTransactions, total: allTransactions.length };
 }
 
 // Trigger a refresh on the Pluggy Item to fetch new data from the bank
@@ -267,19 +286,19 @@ async function syncBankData(
     
     syncedAccountsCount++;
     
-    // Fetch transactions for this account (last 3 months)
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    // Fetch transactions for this account (last 12 months)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     
     try {
-      const transactionsResponse = await getTransactions(
+      const transactionsResponse = await getAllTransactions(
         apiKey, 
         account.id,
-        threeMonthsAgo.toISOString().split('T')[0]
+        twelveMonthsAgo.toISOString().split('T')[0]
       );
       const transactions = transactionsResponse.results || [];
       
-      console.log(`Found ${transactions.length} transactions for account ${account.name}`);
+      console.log(`Found ${transactions.length} total transactions for account ${account.name}`);
       
       // deno-lint-ignore no-explicit-any
       for (const tx of transactions as any[]) {
@@ -397,7 +416,7 @@ serve(async (req) => {
             throw new Error('Not authorized to access this account');
           }
         }
-        result = await getTransactions(apiKey, accountId, from);
+        result = await getAllTransactions(apiKey, accountId, from);
         break;
 
       case 'refresh':
