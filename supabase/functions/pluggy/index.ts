@@ -286,49 +286,42 @@ async function syncBankData(
     
     syncedAccountsCount++;
     
-    // Fetch transactions for this account (last 12 months)
-    const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    
+    // Fetch ALL transactions for this account (no date filter to get complete history)
     try {
       const transactionsResponse = await getAllTransactions(
         apiKey, 
-        account.id,
-        twelveMonthsAgo.toISOString().split('T')[0]
+        account.id
       );
       const transactions = transactionsResponse.results || [];
       
       console.log(`Found ${transactions.length} total transactions for account ${account.name}`);
       
+      // Upsert transactions in batches for efficiency
+      const BATCH_SIZE = 100;
       // deno-lint-ignore no-explicit-any
-      for (const tx of transactions as any[]) {
-        // Check if transaction already exists
-        const { data: existingTx } = await supabase
+      const txRecords = (transactions as any[]).map((tx: any) => ({
+        user_id: userId,
+        bank_account_id: bankAccountId,
+        pluggy_transaction_id: tx.id,
+        description: tx.description,
+        amount: tx.amount,
+        date: tx.date,
+        type: tx.type,
+        category: tx.category,
+        payment_data: tx,
+      }));
+
+      for (let i = 0; i < txRecords.length; i += BATCH_SIZE) {
+        const batch = txRecords.slice(i, i + BATCH_SIZE);
+        const { data: upsertedData, error: upsertError } = await supabase
           .from('bank_transactions')
-          .select('id')
-          .eq('pluggy_transaction_id', tx.id)
-          .maybeSingle();
+          .upsert(batch, { onConflict: 'pluggy_transaction_id', ignoreDuplicates: false })
+          .select('id');
         
-        if (!existingTx) {
-          const { error: txError } = await supabase
-            .from('bank_transactions')
-            .insert({
-              user_id: userId,
-              bank_account_id: bankAccountId,
-              pluggy_transaction_id: tx.id,
-              description: tx.description,
-              amount: tx.amount,
-              date: tx.date,
-              type: tx.type,
-              category: tx.category,
-              payment_data: tx,
-            });
-          
-          if (!txError) {
-            syncedTransactionsCount++;
-          } else {
-            console.error('Error inserting transaction:', txError);
-          }
+        if (upsertError) {
+          console.error(`Error upserting batch ${i / BATCH_SIZE}:`, upsertError);
+        } else {
+          syncedTransactionsCount += (upsertedData?.length || 0);
         }
       }
     } catch (txError) {
