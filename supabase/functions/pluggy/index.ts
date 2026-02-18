@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const PLUGGY_API_URL = 'https://api.pluggy.ai';
@@ -103,12 +103,24 @@ async function refreshItem(apiKey: string, itemId: string) {
       'Content-Type': 'application/json',
       'X-API-KEY': apiKey,
     },
-    body: JSON.stringify({}), // Empty body triggers a refresh
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Pluggy refresh error:', errorText);
+    
+    // Handle sandbox limitation gracefully
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.codeDescription === 'SANDBOX_CLIENT_ITEM_UPDATE_NOT_ALLOWED') {
+        console.log('Sandbox limitation: skipping refresh, will sync existing data');
+        return { status: 'SANDBOX_SKIP', skipped: true };
+      }
+    } catch (_) {
+      // Not JSON, fall through
+    }
+    
     throw new Error('Failed to refresh item');
   }
 
@@ -396,7 +408,14 @@ serve(async (req) => {
         await verifyConnectionOwnership(supabase, connectionId, authenticatedUserId);
         
         // Trigger refresh on Pluggy to fetch new data from the bank
-        result = await refreshItem(apiKey, itemId);
+        const refreshResult = await refreshItem(apiKey, itemId);
+        
+        // If sandbox limitation, still return success so client can proceed with sync
+        if (refreshResult.skipped) {
+          result = { status: 'UPDATED', sandboxSkipped: true };
+        } else {
+          result = refreshResult;
+        }
         break;
 
       case 'get-item-status':
